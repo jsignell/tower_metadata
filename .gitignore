@@ -7,6 +7,7 @@ venv
 
 # Utility scripts for Kelly (and Gist):
 config.codekit
+.codekit-cache
 
 Procfile.local
 .DS_Store
@@ -17,6 +18,12 @@ __pycache__/
 
 # C extensions
 *.so
+
+# Conda stuff
+conda-meta/
+ssl/
+.conda-requirements.txt
+.requirements.txt
 
 # Distribution / packaging
 .Python
