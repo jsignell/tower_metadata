@@ -1,5 +1,27 @@
 from . import db
+import errno
 from .file import File
+
+
+def write_temp(client, file_location, this_file, f):
+    import os
+    # this is probably not a good place to store them
+    # the actual code
+    path = '/tmp/%s/' % this_file
+    try:
+        os.mkdir(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+    temp_location = '/tmp/%s/' % this_file + f
+    # Check to see if the file is already there. It's faster.
+    if not os.path.isfile(temp_location):
+        out = open(temp_location, 'wb')
+        with client.get_file(file_location) as f:
+            out.write(f.read())
+        out.close()
+    print(temp_location)
+    return temp_location
 
 
 # The Metadata object
@@ -62,29 +84,34 @@ class Metadata(db.DynamicDocument):
         return files
 
     def generate_metadata(self):
-        this_netcdf = self.files[0].file_location
-        ds, df_summ = self.files[0].process_netcdf(netcdf=this_netcdf)
-        self.license = ds.attrs['license']
-        self.title = ds.attrs['title']
-        self.creator = ds.attrs['creator_name']
-        self.creator_email = ds.attrs['creator_email']
-        self.institution = ds.attrs['institution']
-        self.aknowledgements = ds.attrs['acknowledgement']
-        self.feature_type = ds.attrs['featureType']
-        self.summary = ds.attrs['summary']
-        self.conventions = ds.attrs['Conventions']
-        self.naming_authority = ds.attrs['naming_authority']
-        if self.date is None:
-            from datetime import datetime
-            self.date = datetime.fromordinal(
-                datetime.toordinal(datetime(
-                    year=self.year, month=1, day=1)
-                ) + self.doy - 1
-            )
-            self.month = self.date.month
-        self.parse_files()
-        self.save()
-        return self
+        if len(self.files) > 0:
+            this_netcdf = self.files[0].file_location
+            ds, df_summ = self.files[0].process_netcdf(netcdf=this_netcdf)
+            self.license = ds.attrs['license']
+            self.title = ds.attrs['title']
+            self.creator = ds.attrs['creator_name']
+            self.creator_email = ds.attrs['creator_email']
+            self.institution = ds.attrs['institution']
+            self.aknowledgements = ds.attrs['acknowledgement']
+            self.feature_type = ds.attrs['featureType']
+            self.summary = ds.attrs['summary']
+            self.conventions = ds.attrs['Conventions']
+            self.naming_authority = ds.attrs['naming_authority']
+            if self.date is None:
+                from datetime import datetime
+                self.date = datetime.fromordinal(
+                    datetime.toordinal(datetime(
+                        year=self.year, month=1, day=1)
+                    ) + self.doy - 1
+                )
+                self.month = self.date.month
+                self.day = self.date.day
+            self.parse_files()
+            self.save()
+            return self
+        else:
+            return "No files found for %d, day of year %d" \
+                % (self.year, self.doy)
 
     def parse_files(self):
         for f in self.files:
@@ -123,7 +150,7 @@ class Metadata(db.DynamicDocument):
             return fake_metadata
 
 
-class DropboxMetadata(Metadata):
+class DropboxFiles(Metadata):
 
     def __repr__(self):
         return '<Dropbox Metadata for doy: %d, year: %d>' \
@@ -131,6 +158,35 @@ class DropboxMetadata(Metadata):
 
     @staticmethod
     def find_files(year=None, doy=None):
-        files = []
-        # Do the dropbox stuff
+        from dropbox.client import DropboxClient
+        from posixpath import join
+        import os
+
+        access_token = os.environ.get('access_token')
+        dropbox_dir = os.environ.get('dropbox_dir')
+
+        client = DropboxClient(access_token)
+
+        files = []  # Initialize an empty array
+        f = 'raw_MpalaTower_%i_%03d.nc' % (year, doy)
+        for this_file in File.DATA_FILES:
+            file_location = join(dropbox_dir, this_file)
+            listdict = []
+            # listdict has a good metadata in it if we ever decide to use it
+            listdict = client.search(file_location, f, file_limit=1)
+            if listdict != []:
+                temp_location = write_temp(
+                    client,
+                    listdict[0]['path'],
+                    this_file,
+                    f
+                )
+                this_file = File(
+                    filename=f,
+                    datafile=this_file,
+                    file_location=temp_location,
+                )
+                files.append(this_file)
+            else:
+                continue
         return files
