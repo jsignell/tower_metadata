@@ -75,20 +75,11 @@ class File(db.DynamicEmbeddedDocument):
 
         # If this is our first time with this file, set the program name and
         # location.
-        if self.program_name is None and self.program_location is None:
-            # Catch the case where we try to run this
-            # before setting self.source:
-            if self.source is None:
-                ds, df_summ = self.process_netcdf(netcdf=self.file_location)
-                self.source = ds.attrs['source']
-            if self.program_name is None:
-                ds, df_summ = self.process_netcdf(netcdf=self.file_location)
-                self.program_name = ds.attrs['program']
-            self.program_location = join(
-                dropbox_dir,
-                'programs',
-                self.program_name
-            )
+        self.program_location = join(
+            dropbox_dir,
+            'programs',
+            self.program_name
+        )
         # Retrieve the REST object from Dropbox
         prog_obj = client.get_file(self.program_location)
         # Put the program file contents into an array for parsing
@@ -168,8 +159,9 @@ class File(db.DynamicEmbeddedDocument):
     def parse(self):
         ds, df_summ = self.process_netcdf(netcdf=self.file_location)
         self.source = ds.attrs['source']
-        self.program = ds.attrs['program']
         self.logger = ds.attrs['logger']
+        self.program = ds.attrs['program']
+        self.datafile = ds.attrs['datafile']
         program_content = self.get_program()
         [
             self.frequency,
