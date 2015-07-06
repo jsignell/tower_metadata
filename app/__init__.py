@@ -41,11 +41,17 @@ def create_app(config_name):
 
     @app.route('/<int:year>/<int:doy>')
     def file_year_doy(year=2015, doy=1):
+        from datetime import datetime
         metadata = Metadata.objects(
             year=year,
             doy=doy).first()
+        jan1 = datetime(year=2015, month=1, day=1)
+        date = datetime.fromordinal(jan1.toordinal() + doy)
         if metadata is None:
-            return render_template('404.html')
+            return render_template(
+                'build_metadata.html',
+                date=date
+            )
         else:
             return render_template(
                 'file.html',
@@ -98,9 +104,23 @@ def create_app(config_name):
                 return 'danger'
             return 'warning'
 
+        def min_ok(min_ok):
+            if min_ok:
+                return 'default'
+            else:
+                return 'danger'
+
+        def max_ok(max_ok):
+            if max_ok:
+                return 'default'
+            else:
+                return 'danger'
+
         return dict(
             label_pct=label_pct,
-            sig_fig=sig_fig
+            sig_fig=sig_fig,
+            min_ok=min_ok,
+            max_ok=max_ok
         )
 
     return app
